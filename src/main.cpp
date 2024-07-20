@@ -11,9 +11,10 @@
 #include <stream_compaction/naive.h>
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
+#include <stream_compaction/hac.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = (1<<21); // feel free to change the size of array
+const int SIZE = (1<<14); // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -99,6 +100,18 @@ int main(int argc, char* argv[]) {
     printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(NPOT, c, true);
     printCmpResult(NPOT, b, c);
+
+    onesArray(SIZE, c);
+    printDesc("hac scan, power-of-two");
+    StreamCompaction::HAC::scan(515, c, c);
+    printElapsedTime(StreamCompaction::HAC::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    //printArray(64, c, true);
+    for (int i = 0; i < 515; i++)
+    {
+        printf("%d, ", c[i]);
+    }
+    printf("\n");
+
 
     printf("\n");
     printf("*****************************\n");
