@@ -24,13 +24,15 @@ namespace StreamCompaction {
 		}
 
 		__device__
-			int group_need_work(int* work_group_index, int size, int groupID)
+			int group_need_work(int* work_group_index, int size, int groupID, int work_group_size)
 		{
-			for (int i = 0; i < size; i++)
+			int minval = work_group_index[size - 1];
+			for (int i = size-1; i >= 0; i--)
 			{
+				minval = (minval < work_group_index[i] && work_group_index[i] - minval < work_group_size) ? minval : work_group_index[i];
 				if (groupID == work_group_index[i])
 				{
-					return 1;
+					return minval;
 				}
 			}
 			return 0;
@@ -46,26 +48,10 @@ namespace StreamCompaction {
 			auto tile32 = cg::tiled_partition<32>(cta);
 			int group_rank = tile32.meta_group_rank();
 
-			if (blockIdx.x == 0)
-			{
-				if (group_rank == 0)
-				{
-					//odata[idx] = cg::exclusive_scan(tile32, idata[idx]);
-					idata[idx] = cg::exclusive_scan(tile32, idata[idx]);
-				}
-				else
-				{
-					//odata[idx] = cg::inclusive_scan(tile32, idata[idx]);
-					idata[idx] = cg::inclusive_scan(tile32, idata[idx]);
 
-				}
-				cta.sync();
-			}
-			else
-			{
-				idata[idx] = cg::inclusive_scan(tile32, idata[idx]);
-
-			}
+			//odata[idx] = cg::exclusive_scan(tile32, idata[idx]);
+			odata[idx] = cg::exclusive_scan(tile32, idata[idx]);
+			cta.sync();
 
 			//okay let's upsweep
 			//we need half of the threads each time, assume here are 8 groups
@@ -83,20 +69,24 @@ namespace StreamCompaction {
 				int work_group_size = (1 << d);
 				//int work_group_num = block_size / 32 / 2;
 				int temp_index = 0;
+				int work_index = 0;
 				for (int i = block_size / 32 - 1; i >= 0; i -= work_group_size)
 				{
 					for (int j = work_group_size; j > 0; j--)
 					{
-						work_group_index[temp_index++] = i--;
+						if (threadIdx.x == 0)work_group_index[temp_index++] = i--;
+						else temp_index++;
 						//if (idx == 0)printf("%d round, %d index, %d\n", d, temp_index - 1, i + 1);
 					}
 				}
+				cta.sync();
 				//now all the groups that need to work has been stored in array
-				if (group_need_work(work_group_index, temp_index, group_rank))
+				if (work_index = group_need_work(work_group_index, temp_index, group_rank, work_group_size))
 				{
-					//if(tile32.thread_rank()==0) printf("%d Group %d in \n", d, group_rank);
+					//if(tile32.thread_rank()==0) printf("%d Group %d in %d\n", d, group_rank, work_index);
 					//minus work_gourp_size to get the group rank that needs operate
-					idata[idx] += idata[(group_rank-work_group_size+1) * 32 - 1];
+					odata[idx] += odata[work_index * 32 - 1]
+						+idata[work_index * 32 - 1];
 				}
 				cta.sync();
 			}
@@ -141,7 +131,7 @@ namespace StreamCompaction {
 
 			timer().endCpuTimer();
 
-			cudaMemcpy(odata, g_idata, origin_n * sizeof(int), cudaMemcpyDeviceToHost);
+			cudaMemcpy(odata, g_odata, origin_n * sizeof(int), cudaMemcpyDeviceToHost);
 			checkCUDAError("hac_memcpy");
 			cudaFree(g_idata);
 			cudaFree(g_odata);
