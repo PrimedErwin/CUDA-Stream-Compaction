@@ -17,8 +17,8 @@ namespace StreamCompaction {
 		 * For performance analysis, this is supposed to be a simple for loop.
 		 * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
 		 */
-		void scan(int n, int* odata, const int* idata) {
-			//timer().startCpuTimer();
+		void scan(int n, int* odata, const int* idata, bool b) {
+			if(b) timer().startCpuTimer();
 			// TODO
 			//odata[0] = idata[0];//exclusive scan array[0] is 0;
 			odata[0] = 0;
@@ -26,7 +26,7 @@ namespace StreamCompaction {
 			{
 				odata[i] = idata[i - 1] + odata[i - 1];
 			}
-			//timer().endCpuTimer();
+			if(b) timer().endCpuTimer();
 		}
 
 		/**
@@ -65,7 +65,7 @@ namespace StreamCompaction {
 			//compute exclusive scan of criterion
 			//index 0 of exclusive scan is 0, so the value of exclusive scan
 			//is the index of odata
-			StreamCompaction::CPU::scan(n, odata, criterion);
+			StreamCompaction::CPU::scan(n, odata, criterion, false);
 			for (int i = 0; i < n; i++)
 			{
 				if (criterion[i]) odata[odata[i]] = idata[i];

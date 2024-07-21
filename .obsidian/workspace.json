@@ -81,7 +81,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "d1c1dee57039bc42",
@@ -160,6 +161,7 @@
   },
   "active": "93de40fcfff9eee4",
   "lastOpenFiles": [
+    "img/analysis.png",
     "INSTRUCTION.md",
     "README.md",
     "img/hac3.png",
