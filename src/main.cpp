@@ -14,7 +14,7 @@
 #include <stream_compaction/hac.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = (1<<14); // feel free to change the size of array
+const int SIZE = (1<<11); // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
 int *a = new int[SIZE];
 int *b = new int[SIZE];
@@ -101,16 +101,18 @@ int main(int argc, char* argv[]) {
     //printArray(NPOT, c, true);
     printCmpResult(NPOT, b, c);
 
-    onesArray(SIZE, c);
+    zeroArray(SIZE, c);
     printDesc("hac scan, power-of-two");
-    StreamCompaction::HAC::scan(515, c, c);
+    StreamCompaction::HAC::scan(SIZE, c, a);
     printElapsedTime(StreamCompaction::HAC::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(64, c, true);
-    for (int i = 0; i < 515; i++)
-    {
-        printf("%d, ", c[i]);
-    }
-    printf("\n");
+    //printArray(SIZE, c, true);
+    //printCmpResult(SIZE, b, c);
+
+    //for (int i = 0; i < SIZE; i++)
+    //{
+    //    printf("%d=%d=%d, \n", i, c[i], b[i]);
+    //}
+    //printf("\n");
 
 
     printf("\n");

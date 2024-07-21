@@ -92,10 +92,39 @@ namespace StreamCompaction {
 			}
 		}
 
-		//we have a lot of blocks with each one full of prefix sums
+		//calculate work_group_index for grid-level recursive sort
 		__global__
-			void block_scan()
+			void grid_work_group_index(int* work_group_index, int d, int* temp_index, dim3 gridSize)
 		{
+			temp_index[0] = 0;
+			int work_group_size = (1 << d);
+			for (int i = gridSize.x - 1; i >= 0; i -= work_group_size)
+			{
+				for (int j = work_group_size; j > 0; j--)
+				{
+					work_group_index[temp_index[0]++] = i--;
+					//printf("%d round, %d index, %d\n", d, temp_index[0] - 1, i + 1);
+				}
+			}
+
+		}
+
+		//we have a lot of blocks with each one full of 512 prefix sums
+		__global__
+			void block_scan(int n, int* odata, int* idata, int* work_group_index, int* temp_index, int d)
+		{
+			int idx = threadIdx.x + blockDim.x * blockIdx.x;
+			if (idx >= n) return;
+			int group_rank = idx / block_size;
+			int work_index = 0;
+			int work_group_size = (1 << d);
+			if (work_index = group_need_work(work_group_index, temp_index[0], group_rank, work_group_size))
+			{
+				//if(tile32.thread_rank()==0) printf("%d Group %d in %d\n", d, group_rank, work_index);
+				//minus work_gourp_size to get the group rank that needs operate
+				odata[idx] += odata[work_index * block_size - 1]
+					+ idata[work_index * block_size - 1];
+			}
 
 		}
 
@@ -115,26 +144,35 @@ namespace StreamCompaction {
 			dim3 gridSize((n - 1) / blockSize.x + 1);
 
 			int level_block_512 = ilog2ceil(gridSize.x);
-			int* g_odata, * g_idata;
+			int* g_odata, * g_idata, *g_work_group_grid, *g_temp_index;
 			cudaMalloc(&g_odata, n * sizeof(int));
+			cudaMalloc(&g_work_group_grid, level_block_512/2 * sizeof(int));
 			cudaMalloc(&g_idata, n * sizeof(int));
+			cudaMalloc(&g_temp_index,  sizeof(int));
 			cudaMemset(g_odata, 0, n * sizeof(int));
 			cudaMemset(g_idata, 0, n * sizeof(int));
 
 			cudaMemcpy(g_idata, idata, origin_n * sizeof(int), cudaMemcpyHostToDevice);
 
-			timer().startCpuTimer();
+			timer().startGpuTimer();
 			tiled_scan << <gridSize, blockSize, (block_size / 64) * sizeof(int), 0 >> > (n, g_odata, g_idata, level_32);
 			checkCUDAError("tiled_scan");
 			//above we get prefix sums by block
 			//the following performs a block scan
-
-			timer().endCpuTimer();
+			for (int d = 0; d < level_block_512; d++)
+			{
+				grid_work_group_index<<<1,1>>>(g_work_group_grid, d, g_temp_index, gridSize);
+				block_scan<<<gridSize, blockSize>>>(n, g_odata, g_idata, g_work_group_grid, g_temp_index, d);
+				checkCUDAError("block scan");
+			}
+			timer().endGpuTimer();
 
 			cudaMemcpy(odata, g_odata, origin_n * sizeof(int), cudaMemcpyDeviceToHost);
 			checkCUDAError("hac_memcpy");
 			cudaFree(g_idata);
 			cudaFree(g_odata);
+			cudaFree(g_work_group_grid);
+			cudaFree(g_temp_index);
 
 		}
 
