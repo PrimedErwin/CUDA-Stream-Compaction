@@ -42,11 +42,11 @@ Radix sort doesn't compact stream. It uses exclusive scan to sort. It's useful t
 ### About hardware acceleration
 I tried exclusive scan with cooperative_groups::exlusive_scan(). I thought it would be better. But sadly, it runs a little bit slower than thrust::exclusive_scan(), and not so convenient. 
 This works like this:
-![[img/hac1.png]]
+![](img/hac1.png)
 Here are a lot of block tile in the block. In `hac.cu`, I used 512 as blockSize, 32 as block tile size. Each tile are full of numbers. Now, we use cooperative_groups::exclusive_scan()(Yes, cc above 8.0 has a hardware acceleration), so each tile is scaned with just one line code, just like thrust.
-![[img/hac2.png]]
+![][img/hac2.png]
 Then scan tiles to get a scanned block. Inspired by the binary tree, in binary tree each loop will shut down half of the threads. But what if we always use half of the threads?
 It goes like this:
-![[img/hac3.png]]
+![][img/hac3.png]
 Arrow means the tile performs an add, the same color means their prefix sum are processed. About the processing, for example, d = 0, id 1 and id 0, id 1 will add the last element of id 0 to all the element id 1 has, the last prefix num is also added, so we will get an array of prefix sum from id 0 to id 1 tile. Later a block scan is performed with the same theory.
 Each time half of the threads are running, and it only need once to complete the whole array, no up-sweep or down-sweep. This sounds amazing! But in implementation, I found this is not so good. **I have to decide which tile group should run this time!** These additional computation costs me a lot of time. So this is slower than efficient scan, a little slower than thrust scan. 
