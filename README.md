@@ -45,8 +45,8 @@ This works like this:
 ![](img/hac1.png)
 
 Here are a lot of block tile in the block. In `hac.cu`, I used 512 as blockSize, 32 as block tile size. Each tile are full of numbers. Now, we use cooperative_groups::exclusive_scan()(Yes, cc above 8.0 has a hardware acceleration), so each tile is scaned with just one line code, just like thrust.
-![](img/hac2.png)
 
+![](img/hac2.png)
 Then scan tiles to get a scanned block. Inspired by the binary tree, in binary tree each loop will shut down half of the threads. But what if we always use half of the threads?
 It goes like this:
 ![](img/hac3.png)
